@@ -25,19 +25,34 @@ def secure_file_permissions(filepath):
         raise PermissionError("File ownership mismatch")
 
 def update_env_file(websites=None):
-    """Safely update .env file with individual website IDs"""
+    """Safely update .env file with individual website IDs, preserving the API key"""
     env_path = Path(ENV_FILE_PATH)
-    temp_path = Path(f'{ENV_FILE_PATH}.{secrets.token_hex(16)}.tmp')
+    temp_path = env_path.with_suffix('.tmp.' + secrets.token_hex(16))  # Create temp path directly
     
+    existing_ids = set()  # To store existing website IDs
+    if env_path.exists():
+        with open(env_path) as f:
+            existing_lines = f.readlines()
+            existing_ids = {line.split('=')[0] for line in existing_lines}  # Extract existing IDs
+    
+    new_ids_added = False  # Track if new IDs are added
+
     with open(temp_path, 'w') as f:
+        f.writelines(existing_lines)  # Write existing lines back to the temp file
+        
         if websites:
             for website in websites:
                 site_name = re.sub(r'[^a-zA-Z0-9]', '', website['displayName'].upper())
-                f.write(f'PAGEVITALS_WEBSITE_{site_name}={website["id"]}\n')
+                env_variable = f'PAGEVITALS_WEBSITE_{site_name}={website["id"]}\n'
+                if env_variable.split('=')[0] not in existing_ids:  # Check if ID already exists
+                    f.write(env_variable)
+                    new_ids_added = True  # Mark that a new ID was added
     
     secure_file_permissions(temp_path)
     temp_path.replace(env_path)
     temp_path.unlink(missing_ok=True)  # Safely unlink the temp file
+
+    return new_ids_added  # Return whether new IDs were added
 
 def log_api_response(response_data):
     """Log API response to a timestamped file in a logs directory"""
@@ -70,9 +85,9 @@ class RateLimiter:
         
         self.calls.append(now)
 
-# Check if .env exists and create it if it doesn't
+# Check if .env exists
 if not Path(ENV_FILE_PATH).exists():
-    print(f"No {ENV_FILE_PATH} file found. Creating one...")
+    print(f"No {ENV_FILE_PATH} file found. Copy .env.example and add the API key to PAGEVITALS_API_KEY.")
     exit(1)
 
 # Load environment variables
@@ -124,8 +139,10 @@ try:
                 print(f"{display_key}: {value}")
             print("-" * 50)
         
-        update_env_file(websites)
-        print("\nWebsite IDs have been saved to .env file")
+        new_ids_added = update_env_file(websites)
+        
+        # Check if any new IDs were added
+        print("\nWebsite IDs have been saved to .env file" if new_ids_added else "No new Website IDs found. No changes made to .env file.")
     else:
         print(f"Error: {response.status_code} - {response.text}")
 
