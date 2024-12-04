@@ -4,6 +4,7 @@ import stat
 from pathlib import Path
 import re
 from dotenv import load_dotenv
+import secrets
 
 def create_env_example():
     """Create .env.example template file"""
@@ -13,20 +14,25 @@ def create_env_example():
             f.write('PAGEVITALS_API_KEY=your_api_key_here')
 
 def secure_file_permissions(filepath):
-    """Set secure file permissions (600) for the .env file"""
-    os.chmod(filepath, stat.S_IRUSR | stat.S_IWUSR)
+    """Set secure file permissions for the .env file"""
+    os.chmod(filepath, stat.S_IRUSR)
+    
+    if os.name == 'posix':
+        current_uid = os.getuid()
+        file_stat = os.stat(filepath)
+        if file_stat.st_uid != current_uid:
+            raise PermissionError("File ownership mismatch")
 
 def validate_api_key(key):
     """Basic validation of API key format"""
-    # Adjust pattern based on actual PageVitals API key format
-    if not key or not re.match(r'^[A-Za-z0-9_-]+$', key):
+    if not key or not re.match(r'^[A-Za-z0-9_-]{32,256}$', key):
         raise ValueError("Invalid API key format")
     return key
 
 def update_env_file(key, websites=None):
     """Safely update .env file with API key and individual website IDs"""
     env_path = Path('.env')
-    temp_path = Path('.env.tmp')
+    temp_path = Path(f'.env.{secrets.token_hex(16)}.tmp')
     
     try:
         # Write to temporary file first
@@ -38,16 +44,15 @@ def update_env_file(key, websites=None):
                     site_name = re.sub(r'[^a-zA-Z0-9]', '', website['displayName'].upper())
                     f.write(f'PAGEVITALS_WEBSITE_{site_name}={website["id"]}\n')
         
-        # Set secure permissions
+        # Ensure temp file has secure permissions before writing
         secure_file_permissions(temp_path)
         
         # Atomic replacement of .env file
         temp_path.replace(env_path)
         
-    except Exception as e:
+    finally:
         if temp_path.exists():
             temp_path.unlink()
-        raise e
 
 # Create .env.example template
 create_env_example()
@@ -90,7 +95,8 @@ base_url = 'https://api.pagevitals.com'
 
 headers = {
     'Authorization': f'Bearer {api_key}',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'User-Agent': 'PageVitals-API-Client/1.0'
 }
 
 # Get list of websites
@@ -100,6 +106,16 @@ response = requests.get(full_url, headers=headers)
 
 if response.status_code == 200:
     websites = response.json()['result']['list']
+    
+    print("\nFound websites:")
+    for website in websites:
+        print(f"\nWebsite Details:")
+        # Loop through all keys in the website dictionary
+        for key, value in website.items():
+            # Format the key name for display (convert camelCase to Title Case)
+            display_key = ' '.join(word.capitalize() for word in re.findall(r'[A-Z]*[a-z0-9]+', key))
+            print(f"{display_key}: {value}")
+        print("-" * 50)
     
     # Update .env file with individual website IDs
     update_env_file(api_key, websites)

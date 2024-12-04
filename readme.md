@@ -19,7 +19,7 @@ A Python client for interacting with the PageVitals API to collect website perfo
 
 The application uses the following environment variables:
 
-- `PAGEVITALS_API_KEY`: Your PageVitals API key
+- `PAGEVITALS_API_KEY`: Your PageVitals API key (recommended to use a "viewer" API key to prevent destructive changes)
 - `PAGEVITALS_WEBSITE_[NAME]`: Website IDs (automatically populated by get-websites.py)
 
 ## File Outputs
