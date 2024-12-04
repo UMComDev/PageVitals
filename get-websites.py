@@ -24,20 +24,12 @@ def secure_file_permissions(filepath):
     if os.name == 'posix' and os.stat(filepath).st_uid != os.getuid():
         raise PermissionError("File ownership mismatch")
 
-def validate_and_update_api_key(new_key):
-    """Validate API key format and update .env file"""
-    if not re.match(r'^[A-Za-z0-9_-]{32,256}$', new_key):
-        raise ValueError("Invalid API key format")
-    
-    update_env_file(new_key)
-
-def update_env_file(key, websites=None):
-    """Safely update .env file with API key and individual website IDs"""
+def update_env_file(websites=None):
+    """Safely update .env file with individual website IDs"""
     env_path = Path(ENV_FILE_PATH)
     temp_path = Path(f'{ENV_FILE_PATH}.{secrets.token_hex(16)}.tmp')
     
     with open(temp_path, 'w') as f:
-        f.write(f'PAGEVITALS_API_KEY={key}\n')
         if websites:
             for website in websites:
                 site_name = re.sub(r'[^a-zA-Z0-9]', '', website['displayName'].upper())
@@ -90,17 +82,7 @@ load_dotenv()
 api_key = os.getenv('PAGEVITALS_API_KEY')
 if not api_key:
     print("PAGEVITALS_API_KEY not found in .env file")
-    new_key = input("API Key: ").strip()
-    
-    try:
-        validate_and_update_api_key(new_key)
-        print(f"{ENV_FILE_PATH} file updated with new API key")
-    except ValueError as e:
-        print(f"Error: {e}")
-        exit(1)
-    except Exception as e:
-        print(f"Error updating {ENV_FILE_PATH} file: {e}")
-        exit(1)
+    exit(1)
 
 # API configuration
 headers = {
@@ -142,7 +124,7 @@ try:
                 print(f"{display_key}: {value}")
             print("-" * 50)
         
-        update_env_file(api_key, websites)
+        update_env_file(websites)
         print("\nWebsite IDs have been saved to .env file")
     else:
         print(f"Error: {response.status_code} - {response.text}")
