@@ -1,1 +1,5 @@
+# Add to .gitignore
 .env
+*.env
+.env.*
+!.env.example
