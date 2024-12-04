@@ -12,8 +12,6 @@ A Python client for interacting with the PageVitals API to collect website perfo
 ## Available Scripts
 
 - `get-websites.py`: Fetches all websites and stores their IDs in `.env`
-- `get-pages.py`: Retrieves all pages for configured websites and exports to CSV
-- `get-lighthouse-scores.py`: Collects Lighthouse performance metrics and exports to CSV
 
 ## Environment Variables
 
