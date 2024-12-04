@@ -33,6 +33,10 @@ ENV/
 logs/
 *.log
 
+# CSV
+csv/
+*.csv
+
 # macOS
 .DS_Store
 .AppleDouble

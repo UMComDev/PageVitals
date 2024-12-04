@@ -12,6 +12,7 @@ A Python client for interacting with the PageVitals API to collect website perfo
 ## Available Scripts
 
 - `get-websites.py`: Fetches all websites and stores their IDs in `.env`
+- `get-pages.py`: Fetches all pages for specified websites, logs the responses, and saves the data to CSV files in the `csv` directory
 
 ## Environment Variables
 
