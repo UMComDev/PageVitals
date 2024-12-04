@@ -29,6 +29,10 @@ venv/
 .venv/
 ENV/
 
+# Logs
+logs/
+*.log
+
 # macOS
 .DS_Store
 .AppleDouble

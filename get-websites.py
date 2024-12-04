@@ -5,6 +5,9 @@ from pathlib import Path
 import re
 from dotenv import load_dotenv
 import secrets
+import json
+from datetime import datetime, timedelta
+import time
 
 def create_env_example():
     """Create .env.example template file"""
@@ -54,6 +57,48 @@ def update_env_file(key, websites=None):
         if temp_path.exists():
             temp_path.unlink()
 
+def log_api_response(response_data):
+    """Log API response to a timestamped file in a logs directory"""
+    # Create logs directory if it doesn't exist
+    log_dir = Path('logs')
+    log_dir.mkdir(exist_ok=True)
+    
+    # Create timestamp for filename
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = log_dir / f'websites_response_{timestamp}.json'
+    
+    # Write response data to file with pretty printing
+    with open(log_file, 'w') as f:
+        json.dump(response_data, f, indent=2)
+    
+    print(f"\nAPI response logged to: {log_file}")
+
+class RateLimiter:
+    """Simple rate limiter to respect API limits of 50 calls per 10 seconds"""
+    def __init__(self, max_calls=50, time_window=10):
+        self.max_calls = max_calls
+        self.time_window = time_window  # in seconds
+        self.calls = []
+
+    def wait_if_needed(self):
+        """Check if we need to wait before making another API call"""
+        now = datetime.now()
+        
+        # Remove calls older than our time window
+        self.calls = [call_time for call_time in self.calls 
+                     if now - call_time < timedelta(seconds=self.time_window)]
+        
+        # If we've hit our limit, wait until enough time has passed
+        if len(self.calls) >= self.max_calls:
+            oldest_call = min(self.calls)
+            sleep_time = (oldest_call + timedelta(seconds=self.time_window) - now).total_seconds()
+            if sleep_time > 0:
+                print(f"\nRate limit approached. Waiting {sleep_time:.2f} seconds...")
+                time.sleep(sleep_time)
+        
+        # Record this call
+        self.calls.append(now)
+
 # Create .env.example template
 create_env_example()
 
@@ -99,26 +144,49 @@ headers = {
     'User-Agent': 'PageVitals-API-Client/1.0'
 }
 
+# Create rate limiter instance
+rate_limiter = RateLimiter()
+
 # Get list of websites
 full_url = f'{base_url}/websites'
 print(f"\nMaking API call to: {full_url}")
-response = requests.get(full_url, headers=headers)
 
-if response.status_code == 200:
-    websites = response.json()['result']['list']
+# Check rate limit before making the call
+rate_limiter.wait_if_needed()
+
+try:
+    response = requests.get(full_url, headers=headers)
     
-    print("\nFound websites:")
-    for website in websites:
-        print(f"\nWebsite Details:")
-        # Loop through all keys in the website dictionary
-        for key, value in website.items():
-            # Format the key name for display (convert camelCase to Title Case)
-            display_key = ' '.join(word.capitalize() for word in re.findall(r'[A-Z]*[a-z0-9]+', key))
-            print(f"{display_key}: {value}")
-        print("-" * 50)
+    # Handle rate limit response
+    if response.status_code == 429:
+        retry_after = int(response.headers.get('Retry-After', 10))
+        print(f"\nRate limit exceeded. Waiting {retry_after} seconds...")
+        time.sleep(retry_after)
+        # Retry the request
+        rate_limiter.wait_if_needed()
+        response = requests.get(full_url, headers=headers)
     
-    # Update .env file with individual website IDs
-    update_env_file(api_key, websites)
-    print("\nWebsite IDs have been saved to .env file")
-else:
-    print(f"Error: {response.status_code} - {response.text}")
+    if response.status_code == 200:
+        response_data = response.json()
+        websites = response_data['result']['list']
+        
+        # Log the full API response
+        log_api_response(response_data)
+        
+        print("\nFound websites:")
+        for website in websites:
+            print(f"\nWebsite Details:")
+            for key, value in website.items():
+                display_key = ' '.join(word.capitalize() for word in re.findall(r'[A-Z]*[a-z0-9]+', key))
+                print(f"{display_key}: {value}")
+            print("-" * 50)
+        
+        # Update .env file with individual website IDs
+        update_env_file(api_key, websites)
+        print("\nWebsite IDs have been saved to .env file")
+    else:
+        print(f"Error: {response.status_code} - {response.text}")
+
+except requests.exceptions.RequestException as e:
+    print(f"Request failed: {e}")
+    exit(1)
