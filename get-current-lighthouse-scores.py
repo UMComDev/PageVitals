@@ -1,4 +1,4 @@
-#Get the Lighthouse scores for all pages monitored across all sites
+#Get the current Lighthouse scores for all pages monitored across all sites
 import requests
 import os
 import json
@@ -45,7 +45,7 @@ def write_pages_to_csv(pages, website_name):
     """
     Writes the page data, including the specified Lighthouse scores (if available), to a CSV file.
     """
-    csv_path = Path(CSV_DIR) / f'{website_name}_pages.csv'
+    csv_path = Path(CSV_DIR) / f'{website_name}_pages_current_lighthouse_scores.csv'
     csv_path.parent.mkdir(exist_ok=True)  # Create the csv directory if it doesn't exist
 
     with open(csv_path, 'w', newline='') as csvfile:
