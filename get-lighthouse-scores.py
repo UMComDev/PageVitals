@@ -1,5 +1,4 @@
-#Get a list of all pages monitored in PageVitals
-
+#Get the Lighthouse scores for all pages monitored across all sites
 import requests
 import os
 import json
@@ -34,34 +33,62 @@ headers = {
 }
 
 def log_api_response(response_data, website_name):
-    """Logs the API response to a JSON file."""
+    """
+    Logs the API response to a JSON file.
+    """
     log_file = f'logs/pages_response_{website_name}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
     with open(log_file, 'w') as f:
         json.dump(response_data, f, indent=2)
     print(f"\nAPI response logged to: {log_file}")
 
 def write_pages_to_csv(pages, website_name):
-    """Writes the page data to a CSV file."""
+    """
+    Writes the page data, including the specified Lighthouse scores (if available), to a CSV file.
+    """
     csv_path = Path(CSV_DIR) / f'{website_name}_pages.csv'
     csv_path.parent.mkdir(exist_ok=True)  # Create the csv directory if it doesn't exist
 
     with open(csv_path, 'w', newline='') as csvfile:
-        fieldnames = ['Page ID', 'Alias', 'URL', 'Device']
+        fieldnames = ['Page ID', 'Alias', 'URL', 'Device', 'Performance Score', 'Accessibility Score', 'Best Practices Score', 'SEO Score']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
         writer.writeheader()
         for page in pages:
-            writer.writerow({
+            row = {
                 'Page ID': page['id'],
                 'Alias': page['alias'],
                 'URL': page['url'],
                 'Device': page['device']
-            })
+            }
+
+            if 'latest' in page and 'performance_score' in page['latest']:
+                row['Performance Score'] = page['latest']['performance_score']
+            else:
+                row['Performance Score'] = 'N/A'
+
+            if 'latest' in page and 'accessibility_score' in page['latest']:
+                row['Accessibility Score'] = page['latest']['accessibility_score']
+            else:
+                row['Accessibility Score'] = 'N/A'
+
+            if 'latest' in page and 'best_practices_score' in page['latest']:
+                row['Best Practices Score'] = page['latest']['best_practices_score']
+            else:
+                row['Best Practices Score'] = 'N/A'
+
+            if 'latest' in page and 'seo_score' in page['latest']:
+                row['SEO Score'] = page['latest']['seo_score']
+            else:
+                row['SEO Score'] = 'N/A'
+
+            writer.writerow(row)
     
     print(f"Page data written to CSV: {csv_path}")
 
 def get_pages(website_id, website_name):
-    """Fetches the list of pages for a specific website."""
+    """
+    Fetches the list of pages for a specific website, including the specified Lighthouse scores.
+    """
     full_url = f'{API_BASE_URL}/{website_id}/pages'
     print(f"\nMaking API call to: {full_url}")
 
@@ -81,7 +108,7 @@ def get_pages(website_id, website_name):
 
             print(f"\nFound pages for {website_name}:")
             for page in response_data['result']['list']:
-                print(f"Page ID: {page['id']}, Alias: {page['alias']}, URL: {page['url']}, Device: {page['device']}")
+                print(f"Page ID: {page['id']}, Alias: {page['alias']}, URL: {page['url']}, Device: {page['device']}, Performance Score: {page['latest']['performance_score']}, Accessibility Score: {page['latest']['accessibility_score']}, Best Practices Score: {page['latest']['best_practices_score']}, SEO Score: {page['latest']['seo_score']}")
         else:
             print(f"Error: {response.status_code} - {response.text}")
 
@@ -90,7 +117,9 @@ def get_pages(website_id, website_name):
         exit(1)
 
 if __name__ == "__main__":
-    """ Main execution of the script."""
+    """
+    Main execution of the script.
+    """
     # Loop through all environment variables that start with PAGEVITALS_WEBSITE_
     for key, value in os.environ.items():
         if key.startswith('PAGEVITALS_WEBSITE_'):
